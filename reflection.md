@@ -6,7 +6,12 @@
 
 - Briefly describe your initial UML design.
 - What classes did you include, and what responsibilities did you assign to each?
+Task , Pet , Owner , Schedular 
 
+Task →(has) Pet →(has) Owner (Manages)← Schedular
+
+
+ 
 **b. Design changes**
 
 - Did your design change during implementation?

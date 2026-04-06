@@ -1,3 +1,4 @@
+from datetime import date, datetime, timedelta
 from typing import List
 
 
@@ -12,10 +13,10 @@ class Task:
         pet_name: str,
     ):
         self.description = description
-        self.time = time
+        self.time = time              # format: "YYYY-MM-DD HH:MM"
         self.duration_minutes = duration_minutes
         self.priority = priority
-        self.frequency = frequency
+        self.frequency = frequency    # "once", "daily", or "weekly"
         self.is_completed = False
         self.pet_name = pet_name
 
@@ -64,7 +65,8 @@ class Scheduler:
         self.owner = owner
 
     def get_daily_schedule(self) -> List[Task]:
-        return self.owner.get_all_tasks()
+        today = date.today().strftime("%Y-%m-%d")
+        return [t for t in self.owner.get_all_tasks() if t.time.startswith(today)]
 
     def sort_by_time(self) -> List[Task]:
         return sorted(self.get_daily_schedule(), key=lambda t: t.time)
@@ -75,19 +77,47 @@ class Scheduler:
     def filter_by_status(self, completed: bool) -> List[Task]:
         return [t for t in self.get_daily_schedule() if t.is_completed == completed]
 
-    def detect_conflicts(self) -> List[Task]:
-        tasks = self.sort_by_time()
-        conflicts = []
-        for i in range(len(tasks) - 1):
-            current = tasks[i]
-            next_task = tasks[i + 1]
-            if current.time == next_task.time:
-                if current not in conflicts:
-                    conflicts.append(current)
-                conflicts.append(next_task)
-        return conflicts
+    def detect_conflicts(self) -> List[str]:
+        # Group today's tasks by pet name
+        pet_tasks: dict = {}
+        for task in self.get_daily_schedule():
+            pet_tasks.setdefault(task.pet_name, []).append(task)
+
+        warnings = []
+        for pet_name, tasks in pet_tasks.items():
+            # Check every pair of tasks for the same pet at the same time
+            for i in range(len(tasks)):
+                for j in range(i + 1, len(tasks)):
+                    if tasks[i].time == tasks[j].time:
+                        warnings.append(
+                            f"Conflict: '{tasks[i].description}' and "
+                            f"'{tasks[j].description}' for {pet_name} "
+                            f"are both scheduled at {tasks[i].time}"
+                        )
+        return warnings
 
     def handle_recurring_tasks(self) -> None:
-        for task in self.get_daily_schedule():
-            if task.frequency != "once" and task.is_completed:
-                task.is_completed = False
+        pet_lookup = {pet.name: pet for pet in self.owner.pets}
+
+        for task in self.owner.get_all_tasks():
+            if not task.is_completed or task.frequency not in ("daily", "weekly"):
+                continue
+
+            task_datetime = datetime.strptime(task.time, "%Y-%m-%d %H:%M")
+            if task.frequency == "daily":
+                next_datetime = task_datetime + timedelta(days=1)
+            else:
+                next_datetime = task_datetime + timedelta(weeks=1)
+
+            new_task = Task(
+                description=task.description,
+                time=next_datetime.strftime("%Y-%m-%d %H:%M"),
+                duration_minutes=task.duration_minutes,
+                priority=task.priority,
+                frequency=task.frequency,
+                pet_name=task.pet_name,
+            )
+
+            pet = pet_lookup.get(task.pet_name)
+            if pet:
+                pet.add_task(new_task)
